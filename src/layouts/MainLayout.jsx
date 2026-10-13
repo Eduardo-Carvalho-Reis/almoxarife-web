@@ -123,8 +123,21 @@ export default function MainLayout() {
    * Para "/" precisa ser comparação exata, senão TODA rota começa com "/" e
    * tudo ficaria ativo. Para as outras, basta começar com o path.
    */
-  const isActive = (path) =>
-    path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
+  const isActive = (path) => {
+    if (path === "/") return location.pathname === "/";
+
+    // Manutenção é uma área própria dentro de Equipamentos. Sem essa
+    // separação, o prefixo "/equipamentos" também deixava os dois itens
+    // do menu destacados ao abrir a manutenção.
+    if (path === "/equipamentos") {
+      return location.pathname.startsWith(path) && !location.pathname.includes("/manutencao");
+    }
+    if (path === "/equipamentos/manutencao") {
+      return location.pathname.includes("/manutencao");
+    }
+
+    return location.pathname.startsWith(path);
+  };
 
   const drawerContent = (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>

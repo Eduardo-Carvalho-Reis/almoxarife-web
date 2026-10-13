@@ -111,10 +111,24 @@ export const estoque = async (req, res) => {
 export const totaisMovimentacao = async (req, res) => {
   try {
     const escopo = escopoAlmoxarifado(req.usuario)
-    const dados = await almoxarifadoService.calcularTotaisMovimentacao(req.params.id, escopo)
+    const dados = await almoxarifadoService.calcularTotaisMovimentacao(req.params.id, req.query, escopo)
     res.json({ sucesso: true, dados })
   } catch (erro) {
     if (erro.message === "Almoxarifado não encontrado") {
+      return res.status(404).json({ sucesso: false, erro: erro.message })
+    }
+    res.status(erro.status || 400).json({ sucesso: false, erro: erro.message })
+  }
+}
+
+// Anos que possuem movimenta\u00e7\u00e3o para compor o seletor de per\u00edodo da tela.
+export const anosMovimentacao = async (req, res) => {
+  try {
+    const escopo = escopoAlmoxarifado(req.usuario)
+    const dados = await almoxarifadoService.listarAnosMovimentacao(req.params.id, escopo)
+    res.json({ sucesso: true, dados })
+  } catch (erro) {
+    if (erro.message === "Almoxarifado n\u00e3o encontrado") {
       return res.status(404).json({ sucesso: false, erro: erro.message })
     }
     res.status(erro.status || 400).json({ sucesso: false, erro: erro.message })
