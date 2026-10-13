@@ -8,6 +8,10 @@ import {
   TextField,
   Autocomplete,
   Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Box,
   Divider,
   Table,
@@ -51,6 +55,13 @@ import { useAuth } from "../../auth/AuthContext";
 
 const API_URL = `${window.location.origin}/api`;
 
+const MESES = [
+  { valor: 1, rotulo: "JAN" }, { valor: 2, rotulo: "FEV" }, { valor: 3, rotulo: "MAR" },
+  { valor: 4, rotulo: "ABR" }, { valor: 5, rotulo: "MAI" }, { valor: 6, rotulo: "JUN" },
+  { valor: 7, rotulo: "JUL" }, { valor: 8, rotulo: "AGO" }, { valor: 9, rotulo: "SET" },
+  { valor: 10, rotulo: "OUT" }, { valor: 11, rotulo: "NOV" }, { valor: 12, rotulo: "DEZ" }
+];
+
 export default function AlmoxarifadoDetalhes() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -65,6 +76,14 @@ export default function AlmoxarifadoDetalhes() {
   const [valorSaida, setValorSaida] = useState(0);
   const [valorServicos, setValorServicos] = useState(0);
   const [valorAbastecimentoTanque, setValorAbastecimentoTanque] = useState(0);
+  const hoje = new Date();
+  const anoAtual = hoje.getFullYear();
+  const mesAtual = hoje.getMonth() + 1;
+  const [anoSelecionado, setAnoSelecionado] = useState(anoAtual);
+  const [mesSelecionado, setMesSelecionado] = useState(mesAtual);
+  const [todoPeriodo, setTodoPeriodo] = useState(false);
+  const [anosDisponiveis, setAnosDisponiveis] = useState([anoAtual]);
+  const [valorEstocado, setValorEstocado] = useState(0);
   const [error, setError] = useState("");
 
   // Filtros conforme RF014: produto, fornecedor, data.
@@ -103,7 +122,31 @@ export default function AlmoxarifadoDetalhes() {
     // Totais históricos de entrada e saída deste almoxarifado. A entrada
     // considera todas as compras já recebidas, mesmo que o produto não esteja
     // mais no estoque.
-    fetch(`${API_URL}/almoxarifados/${id}/totais-movimentacao`)
+    fetch(`${API_URL}/almoxarifados/${id}/anos-movimentacao`)
+      .then(res => res.json())
+      .then(result => {
+        if (result.sucesso && Array.isArray(result.dados)) {
+          setAnosDisponiveis([...new Set([anoAtual, ...result.dados])].sort((a, b) => b - a));
+        }
+      })
+      .catch(err => setError("Erro ao carregar totais de movimentação: " + err.message));
+  }, [id, anoAtual]);
+
+  // ── Handlers dos filtros do estoque (filtragem LOCAL no mock) ──
+  // Os cards são carregados novamente a cada troca de período. Sem parâmetros,
+  // o endpoint retorna o consolidado desde o início da obra.
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    if (!todoPeriodo) {
+      params.set("ano", String(anoSelecionado));
+      params.set("mes", String(mesSelecionado));
+    }
+    const query = params.toString();
+
+    fetch(`${API_URL}/almoxarifados/${id}/totais-movimentacao${query ? `?${query}` : ""}`, {
+      signal: controller.signal
+    })
       .then(res => res.json())
       .then(result => {
         if (result.sucesso) {
@@ -111,12 +154,20 @@ export default function AlmoxarifadoDetalhes() {
           setValorSaida(Number(result.dados.valor_saida) || 0);
           setValorServicos(Number(result.dados.valor_servicos) || 0);
           setValorAbastecimentoTanque(Number(result.dados.valor_abastecimento_tanque) || 0);
+          setValorEstocado(Number(result.dados.valor_estocado) || 0);
+        } else {
+          setError(result.erro || "Erro ao carregar totais de movimentação.");
         }
       })
-      .catch(err => setError("Erro ao carregar totais de movimentação: " + err.message));
-  }, [id]);
+      .catch(err => {
+        if (err.name !== "AbortError") {
+          setError("Erro ao carregar totais de movimentação: " + err.message);
+        }
+      });
 
-  // ── Handlers dos filtros do estoque (filtragem LOCAL no mock) ──
+    return () => controller.abort();
+  }, [id, anoSelecionado, mesSelecionado, todoPeriodo]);
+
   function handleFiltroChange(campo, valor) {
     setFiltros(prev => ({ ...prev, [campo]: valor }));
   }
@@ -143,7 +194,6 @@ export default function AlmoxarifadoDetalhes() {
 
   // ── Calculos derivados ──
   const totalItens = estoque.reduce((sum, it) => sum + it.qtd, 0);
-  const valorTotal = estoque.reduce((sum, it) => sum + it.qtd * it.valor_unit, 0);
   const itensBaixoEstoque = estoque.filter(it => it.qtd < it.qtd_minima).length;
   const fornecedoresDoEstoque = [...new Set(
     estoque.map((item) => item.fornecedor).filter((fornecedor) => fornecedor && fornecedor !== "—")
@@ -237,6 +287,64 @@ export default function AlmoxarifadoDetalhes() {
       </Paper>
 
       {/* === BLOCO 2: Resumo do estoque (4 cards) — calculado sobre o MOCK === */}
+      <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mb: 3 }}>
+        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5 }}>
+          Período dos indicadores
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Selecione um mês e ano para consultar as movimentações ou veja o consolidado da obra.
+        </Typography>
+        <Stack spacing={1.5}>
+          <FormControl size="small" sx={{ width: { xs: "100%", sm: 160 } }}>
+            <InputLabel id="ano-indicadores-label">Ano</InputLabel>
+            <Select
+              labelId="ano-indicadores-label"
+              label="Ano"
+              value={anoSelecionado}
+              onChange={(event) => {
+                setAnoSelecionado(Number(event.target.value));
+                setTodoPeriodo(false);
+              }}
+            >
+              {anosDisponiveis.map((ano) => (
+                <MenuItem key={ano} value={ano}>{ano}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Stack direction="row" flexWrap="wrap" gap={1}>
+            {MESES.map((mes) => {
+              const selecionado = !todoPeriodo && mesSelecionado === mes.valor;
+              return (
+                <Button
+                  key={mes.valor}
+                  size="small"
+                  variant={selecionado ? "contained" : "outlined"}
+                  color="primary"
+                  aria-pressed={selecionado}
+                  onClick={() => {
+                    setMesSelecionado(mes.valor);
+                    setTodoPeriodo(false);
+                  }}
+                  sx={{ minWidth: 58, fontWeight: selecionado ? 700 : 600 }}
+                >
+                  {mes.rotulo}
+                </Button>
+              );
+            })}
+            <Button
+              size="small"
+              variant={todoPeriodo ? "contained" : "outlined"}
+              color="primary"
+              aria-pressed={todoPeriodo}
+              onClick={() => setTodoPeriodo(true)}
+              sx={{ fontWeight: todoPeriodo ? 700 : 600 }}
+            >
+              Todo o período
+            </Button>
+          </Stack>
+        </Stack>
+      </Paper>
+
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
           <SummaryCard
@@ -258,7 +366,7 @@ export default function AlmoxarifadoDetalhes() {
           <SummaryCard
             icon={<AttachMoneyIcon />}
             color="#10b981"
-            value={formatarMoeda(valorTotal)}
+            value={formatarMoeda(valorEstocado)}
             label="Valor total estocado"
           />
         </Grid>

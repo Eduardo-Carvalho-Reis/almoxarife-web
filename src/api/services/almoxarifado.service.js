@@ -1,5 +1,6 @@
 import * as almoxarifadoRepo from "../repositories/almoxarifado.repository.js"
 import db from "../models/index.js"
+import { Op } from "sequelize"
 import { assertAcessoAlmoxarifado } from "../utils/escopo.js"
 
 // ──────────────────────────────────────────────────────────────
@@ -221,6 +222,25 @@ const somarValorDosItens = (itens, obterValorUnitario) =>
     return soma + quantidade * valorUnitario
   }, 0)
 
+// Produtos não têm uma coluna de categoria no modelo atual. A classificação
+// fica centralizada aqui e considera nome e descrição, removendo acentos para
+// abranger os cadastros já existentes (ex.: "Óleo diesel" e "oleo diesel").
+// Não usamos a unidade "LT" como critério: tintas e outros materiais líquidos
+// continuam sendo materiais de almoxarifado.
+const PADRAO_COMBUSTIVEL = /\b(COMBUSTIVEL|GASOLINA|DIESEL|ETANOL|BIODIESEL|GASOLEO|QUEROSENE|GNV|GLP|ARLA\s*32)\b/
+
+const ehCombustivel = (registro) => {
+  const item = typeof registro.toJSON === "function" ? registro.toJSON() : registro
+  const produto = item.produto || {}
+  const texto = [produto.nome, produto.descricao]
+    .filter(Boolean)
+    .join(" ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+  return PADRAO_COMBUSTIVEL.test(texto)
+}
+
 // ──────────────────────────────────────────────────────────────
 // Estoque de um almoxarifado [RF014 - Consultar Almoxarifado].
 // Lê a tabela Estoque (saldo por produto) e junta com Produto para obter
@@ -303,9 +323,32 @@ export const listarEstoque = async (id, escopo = null) => {
 // — não o preço
 // de cadastro do produto, que não reflete o valor realmente pago.
 // ──────────────────────────────────────────────────────────────
-export const calcularTotaisMovimentacao = async (id, escopo = null) => {
+function normalizarPeriodo({ ano, mes } = {}) {
+  // Sem par\u00e2metros significa o consolidado desde o in\u00edcio da obra.
+  if (ano === undefined && mes === undefined) return null
+
+  const anoNumero = Number(ano)
+  const mesNumero = Number(mes)
+  if (!Number.isInteger(anoNumero) || anoNumero < 2000 || anoNumero > 9999 ||
+      !Number.isInteger(mesNumero) || mesNumero < 1 || mesNumero > 12) {
+    const erro = new Error("Informe um ano e um m\u00eas v\u00e1lidos para filtrar as movimenta\u00e7\u00f5es")
+    erro.status = 400
+    throw erro
+  }
+
+  return {
+    inicio: new Date(Date.UTC(anoNumero, mesNumero - 1, 1)),
+    fim: new Date(Date.UTC(anoNumero, mesNumero, 1))
+  }
+}
+
+const filtroDeData = (campo, periodo) =>
+  periodo ? { [campo]: { [Op.gte]: periodo.inicio, [Op.lt]: periodo.fim } } : {}
+
+export const calcularTotaisMovimentacao = async (id, filtrosPeriodo = {}, escopo = null) => {
   assertAcessoAlmoxarifado(escopo, id)
   const codAlmoxarifado = Number(id)
+  const periodo = normalizarPeriodo(filtrosPeriodo)
   const almoxarifado = await almoxarifadoRepo.buscarPorId(codAlmoxarifado)
   if (!almoxarifado) {
     throw new Error("Almoxarifado não encontrado")
@@ -316,7 +359,7 @@ export const calcularTotaisMovimentacao = async (id, escopo = null) => {
   // itens em vez de usar Compra.valor_total porque esse campo não estava
   // sendo calculado no cadastro/edição da compra (ver correção em
   // compra.service.js) — compras antigas ficariam de fora se usássemos ele.
-  const [itensCompra, custosMedios, itensServico] = await Promise.all([
+  const [itensCompra, custosMedios, itensServico, estoqueDoPeriodo] = await Promise.all([
     db.ItemCompra.findAll({
       attributes: ["id_produto", "quantidade", "valor_unitario"],
       include: [
@@ -326,8 +369,15 @@ export const calcularTotaisMovimentacao = async (id, escopo = null) => {
           attributes: [],
           where: {
             cod_almoxarifado_destino: codAlmoxarifado,
-            status: "RECEBIDO"
+            status: "RECEBIDO",
+            ...filtroDeData("data_compra", periodo)
           },
+          required: true
+        },
+        {
+          model: db.Produto,
+          as: "produto",
+          attributes: ["nome", "descricao"],
           required: true
         }
       ]
@@ -340,16 +390,34 @@ export const calcularTotaisMovimentacao = async (id, escopo = null) => {
           model: db.Servico,
           as: "servico",
           attributes: [],
-          where: { cod_almoxarifado: codAlmoxarifado },
+          where: {
+            cod_almoxarifado: codAlmoxarifado,
+            ...filtroDeData("data_servico", periodo)
+          },
           required: true
         }
       ]
+    }),
+    db.Estoque.findAll({
+      where: {
+        cod_almoxarifado: codAlmoxarifado,
+        ...filtroDeData("ultima_atualizacao", periodo)
+      },
+      include: [{
+        model: db.Produto,
+        as: "produto",
+        attributes: ["preco_custo", "nome", "descricao"],
+        where: { ativo: 1 },
+        required: true
+      }]
     })
   ])
 
   const valorEntrada = somarValorDosItens(
-    itensCompra,
-    (item) => custosMedios.get(item.id_produto) ?? item.valor_unitario
+    itensCompra.filter((item) => !ehCombustivel(item)),
+    // A entrada deve refletir o pre\u00e7o efetivamente registrado na compra,
+    // nunca o custo m\u00e9dio atual de outro per\u00edodo.
+    (item) => item.valor_unitario
   )
   const valorServicos = somarValorDosItens(
     itensServico,
@@ -363,13 +431,16 @@ export const calcularTotaisMovimentacao = async (id, escopo = null) => {
         model: db.Saida,
         as: "saida",
         attributes: ["aplicacao"],
-        where: { cod_almoxarifado_origem: codAlmoxarifado },
+        where: {
+          cod_almoxarifado_origem: codAlmoxarifado,
+          ...filtroDeData("data_saida", periodo)
+        },
         required: true
       },
       {
         model: db.Produto,
         as: "produto",
-        attributes: ["preco_custo"]
+        attributes: ["preco_custo", "nome", "descricao"]
       }
     ]
   })
@@ -380,21 +451,73 @@ export const calcularTotaisMovimentacao = async (id, escopo = null) => {
       ? custoMedio
       : Number(registro.produto?.preco_custo) || 0
   }
-  const valorSaida = somarValorDosItens(itensSaida, valorUnitarioDaSaida)
-  const valorAbastecimentoTanque = somarValorDosItens(
-    itensSaida.filter((item) => {
-      const registro = item.toJSON()
-      return String(registro.saida?.aplicacao || "").trim().toLocaleUpperCase("pt-BR") === "ABASTECIMENTO TANQUE"
-    }),
+  const valorSaida = somarValorDosItens(
+    itensSaida.filter((item) => !ehCombustivel(item)),
     valorUnitarioDaSaida
   )
+  const valorConsumoCombustivel = somarValorDosItens(
+    itensSaida.filter(ehCombustivel),
+    valorUnitarioDaSaida
+  )
+  // O card de abastecimento representa apenas o combustível efetivamente
+  // retirado do almoxarifado/tanque. Compras não atualizam este indicador.
+  const valorAbastecimentoTanque = valorConsumoCombustivel
+  const valorEstocado = estoqueDoPeriodo.reduce((soma, registro) => {
+    const item = registro.toJSON()
+    if (ehCombustivel(item)) return soma
+    const custoMedio = custosMedios.get(item.id_produto)
+    const valorUnitario = custoMedio !== undefined
+      ? custoMedio
+      : Number(item.produto?.preco_custo) || 0
+    return soma + (Number(item.quantidade) || 0) * valorUnitario
+  }, 0)
 
   return {
     valor_entrada: Number(valorEntrada) || 0,
-    valor_saida: valorSaida,
+    valor_saida: Number(valorSaida) || 0,
     valor_servicos: Number(valorServicos) || 0,
-    valor_abastecimento_tanque: Number(valorAbastecimentoTanque) || 0
+    valor_abastecimento_tanque: Number(valorAbastecimentoTanque) || 0,
+    valor_estocado: Number(valorEstocado) || 0
   }
+}
+
+export const listarAnosMovimentacao = async (id, escopo = null) => {
+  assertAcessoAlmoxarifado(escopo, id)
+  const codAlmoxarifado = Number(id)
+  const almoxarifado = await almoxarifadoRepo.buscarPorId(codAlmoxarifado)
+  if (!almoxarifado) throw new Error("Almoxarifado n\u00e3o encontrado")
+
+  const [compras, saidas, servicos, estoques] = await Promise.all([
+    db.Compra.findAll({
+      attributes: ["data_compra"],
+      where: { cod_almoxarifado_destino: codAlmoxarifado, status: "RECEBIDO" }
+    }),
+    db.Saida.findAll({
+      attributes: ["data_saida"],
+      where: { cod_almoxarifado_origem: codAlmoxarifado }
+    }),
+    db.Servico.findAll({
+      attributes: ["data_servico"],
+      where: { cod_almoxarifado: codAlmoxarifado }
+    }),
+    db.Estoque.findAll({
+      attributes: ["ultima_atualizacao"],
+      where: { cod_almoxarifado: codAlmoxarifado }
+    })
+  ])
+
+  const datas = [
+    ...compras.map((item) => item.data_compra),
+    ...saidas.map((item) => item.data_saida),
+    ...servicos.map((item) => item.data_servico),
+    ...estoques.map((item) => item.ultima_atualizacao)
+  ]
+  const anos = new Set([new Date().getFullYear()])
+  datas.forEach((data) => {
+    const ano = new Date(data).getUTCFullYear()
+    if (Number.isInteger(ano) && ano > 0) anos.add(ano)
+  })
+  return [...anos].sort((a, b) => b - a)
 }
 
 export const inativarAlmoxarifado = async (id, escopo = null) => {
