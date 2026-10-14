@@ -240,6 +240,10 @@ export const listarSaidas = async (filtros = {}, escopo = null) => {
   return await saidaRepo.listarTodos(limpos);
 };
 
+export const listarProdutosComSaidas = async (escopo = null) => {
+  return await saidaRepo.listarProdutosComSaidas(escopo);
+};
+
 export const buscarSaidaPorId = async (id, escopo = null) => {
   const saida = await saidaRepo.buscarPorId(id);
 

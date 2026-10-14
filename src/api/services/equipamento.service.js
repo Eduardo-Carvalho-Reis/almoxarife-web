@@ -67,6 +67,7 @@ const normalizarFiltros = (filtros = {}) => {
   const limpos = {}
   if (filtros.descricao && String(filtros.descricao).trim()) limpos.descricao = String(filtros.descricao).trim()
   if (filtros.codigo && String(filtros.codigo).trim()) limpos.codigo = String(filtros.codigo).trim()
+  if (filtros.placa && String(filtros.placa).trim()) limpos.placa = String(filtros.placa).trim().toUpperCase()
   if (filtros.obraId !== undefined && String(filtros.obraId).trim()) limpos.obraId = normalizarObraId(filtros.obraId)
   return limpos
 }
@@ -74,6 +75,8 @@ const normalizarFiltros = (filtros = {}) => {
 export const listarEquipamentos = async (filtros = {}) => {
   return await equipamentoRepo.listarTodos(normalizarFiltros(filtros))
 }
+
+export const listarPlacasEquipamentos = async () => equipamentoRepo.listarPlacas()
 
 export const buscarEquipamentoPorId = async (id) => {
   const equipamento = await equipamentoRepo.buscarPorId(id)

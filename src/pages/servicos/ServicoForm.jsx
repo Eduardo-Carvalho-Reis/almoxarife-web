@@ -6,9 +6,10 @@ import FormPageHeader from "../../components/FormPageHeader";
 import ItemCompraRow from "../../components/ItemCompraRow";
 import EntityAutocomplete from "../../components/EntityAutocomplete";
 import { useAuth } from "../../auth/AuthContext";
+import { previaValorTotal, formatarMoedaCompra } from "../../utils/valoresCompra.mjs";
 
 const API_URL = `${window.location.origin}/api`;
-const itemVazio = { id_produto: "", quantidade: "", valor_unitario: "", automatico: false };
+const itemVazio = { id_produto: "", quantidade: "", valor_unitario: "" };
 const hoje = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const paraInput = (valor) => { const d = new Date(valor); return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
@@ -33,7 +34,7 @@ export default function ServicoForm({ id = null }) {
         if (!resServico?.sucesso) throw new Error(resServico?.erro || "Serviço não encontrado");
         const s = resServico.dados;
         setForm({ id_fornecedor: s.id_fornecedor || "", id_funcionario_responsavel: s.id_funcionario_responsavel || "", cod_almoxarifado: almoxarifadoTravado || s.cod_almoxarifado || "", data_servico: paraInput(s.data_servico), numero_nota_fiscal: s.numero_nota_fiscal || "", aplicacao: s.aplicacao || "", observacao: s.observacao || "" });
-        setItens(s.itens?.length ? s.itens.map((i) => ({ id_produto: i.id_produto, quantidade: String(i.quantidade), valor_unitario: String(i.valor_unitario), automatico: false })) : [{ ...itemVazio }]);
+        setItens(s.itens?.length ? s.itens.map((i) => ({ id_produto: i.id_produto, quantidade: String(i.quantidade), valor_unitario: String(i.valor_unitario) })) : [{ ...itemVazio }]);
       }
       setLoading(false);
     }).catch((err) => { setError(`Erro ao carregar os dados: ${err.message}`); setLoading(false); });
@@ -43,26 +44,12 @@ export default function ServicoForm({ id = null }) {
     if (almoxarifadoTravado) setForm((atual) => ({ ...atual, cod_almoxarifado: almoxarifadoTravado }));
   }, [almoxarifadoTravado]);
 
-  const alterarItem = (index, campo, valor) => setItens((atual) => atual.map((item, i) => {
-    if (i !== index) return item;
-    const proximo = { ...item, [campo]: valor };
-    if (campo === "id_produto" && proximo.automatico) {
-      const produto = produtos.find((p) => Number(p.id_produto) === Number(valor));
-      proximo.valor_unitario = produto ? String(produto.preco_custo ?? 0) : "";
-    }
-    return proximo;
-  }));
-  const alternarPrecoAutomatico = (index) => setItens((atual) => atual.map((item, i) => {
-    if (i !== index) return item;
-    const automatico = !item.automatico;
-    const produto = produtos.find((p) => Number(p.id_produto) === Number(item.id_produto));
-    return { ...item, automatico, valor_unitario: automatico && produto ? String(produto.preco_custo ?? 0) : item.valor_unitario };
-  }));
+  const alterarItem = (index, campo, valor) => setItens((atual) => atual.map((item, i) => i === index ? { ...item, [campo]: valor } : item));
   const removerItem = (index) => setItens((atual) => atual.length === 1 ? atual : atual.filter((_, i) => i !== index));
   function salvar(e) {
     e.preventDefault(); setError("");
-    const itensValidos = itens.filter((i) => i.id_produto && Number(i.quantidade) > 0 && i.valor_unitario !== "" && Number(i.valor_unitario) >= 0);
-    if (!itensValidos.length) return setError("Informe ao menos um produto, quantidade e valor.");
+    const itensValidos = itens.filter((i) => i.id_produto && i.quantidade !== "" && i.valor_unitario !== "");
+    if (!itensValidos.length || itensValidos.length !== itens.length) return setError("Informe ao menos um produto, quantidade e valor em cada linha.");
     setSaving(true);
     fetch(`${API_URL}/servicos${id ? `/${id}` : ""}`, { method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, itens: itensValidos }) })
       .then((r) => r.json()).then((res) => { if (!res.sucesso) throw new Error(res.erro || "Não foi possível salvar o serviço"); navigate("/servicos"); })
@@ -84,7 +71,8 @@ export default function ServicoForm({ id = null }) {
           <Grid item xs={12}><TextField name="observacao" label="Observação" value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} fullWidth multiline minRows={2} /></Grid>
         </Grid>
         <Divider sx={{ my: 3 }} /><Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}><Typography variant="subtitle2" color="text.secondary">Produtos e valores</Typography><Button size="small" startIcon={<AddCircleOutlineIcon />} onClick={() => setItens((atual) => [...atual, { ...itemVazio }])}>Adicionar</Button></Box>
-        <Stack spacing={1.5}>{itens.map((item, i) => <ItemCompraRow key={i} item={item} index={i} produtos={produtos} onChange={alterarItem} onRemove={removerItem} disableRemove={itens.length === 1} valorReadOnly={item.automatico} onToggleAutomatico={alternarPrecoAutomatico} />)}</Stack>
+        <Stack spacing={1.5}>{itens.map((item, i) => <ItemCompraRow key={i} item={item} index={i} produtos={produtos} onChange={alterarItem} onRemove={removerItem} disableRemove={itens.length === 1} valorCasas={3} />)}</Stack>
+        <Typography sx={{ mt: 2 }} fontWeight={600}>Total do serviço: {formatarMoedaCompra(previaValorTotal(itens, { casasValor: 3 }))}</Typography>
         <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mt: 4 }}><Button variant="outlined" onClick={() => navigate(-1)} disabled={saving}>Cancelar</Button><Button type="submit" variant="contained" disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button></Stack>
       </form>
     </Paper>

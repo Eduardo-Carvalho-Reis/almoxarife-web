@@ -9,6 +9,15 @@ export const listar = async (req, res) => {
   }
 }
 
+export const listarPlacas = async (req, res) => {
+  try {
+    const dados = await equipamentoService.listarPlacasEquipamentos()
+    res.json({ sucesso: true, dados, total: dados.length })
+  } catch (erro) {
+    res.status(erro.status || 400).json({ sucesso: false, erro: erro.message })
+  }
+}
+
 export const buscarPorId = async (req, res) => {
   try {
     const dados = await equipamentoService.buscarEquipamentoPorId(req.params.id)

@@ -4,6 +4,7 @@ import * as controller from "../controllers/saida.controller.js"
 const router = Router()
 
 router.post("/", controller.cadastrar)
+router.get("/produtos", controller.listarProdutos)
 router.get("/", controller.listar)
 router.get("/:id", controller.buscarPorId)
 router.put("/:id", controller.editar)

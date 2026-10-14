@@ -17,6 +17,16 @@ export const listar = async (req, res) => {
   }
 }
 
+export const listarProdutos = async (req, res) => {
+  try {
+    const produtos = await saidaService.listarProdutosComSaidas(escopoAlmoxarifado(req.usuario))
+    const dados = produtos.map((produto) => ({ id_produto: produto.id_produto, nome: produto.nome }))
+    res.json({ sucesso: true, dados, total: dados.length })
+  } catch (erro) {
+    res.status(erro.status || 400).json({ sucesso: false, erro: erro.message })
+  }
+}
+
 export const buscarPorId = async (req, res) => {
   try {
     const escopo = escopoAlmoxarifado(req.usuario)

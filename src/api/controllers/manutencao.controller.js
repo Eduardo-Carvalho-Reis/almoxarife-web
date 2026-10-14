@@ -25,6 +25,10 @@ export const atualizarHorimetro = async (req, res) => {
   try { res.json({ sucesso: true, mensagem: "Leitura de horímetro atualizada com sucesso", dados: await service.atualizarHorimetro(req.params.id, req.params.idHorimetro, req.body, escopoAlmoxarifado(req.usuario)) }) }
   catch (erro) { responder(res, erro) }
 }
+export const excluirHorimetro = async (req, res) => {
+  try { res.json({ sucesso: true, mensagem: "Leitura de horímetro excluída com sucesso", dados: await service.excluirHorimetro(req.params.id, req.params.idHorimetro, escopoAlmoxarifado(req.usuario)) }) }
+  catch (erro) { responder(res, erro) }
+}
 export const listarManutencoes = async (req, res) => {
   try { res.json({ sucesso: true, dados: (await service.buscarDetalhes(req.params.id, escopoAlmoxarifado(req.usuario))).manutencoes }) }
   catch (erro) { responder(res, erro, 404) }
@@ -35,5 +39,9 @@ export const criarManutencao = async (req, res) => {
 }
 export const atualizarManutencao = async (req, res) => {
   try { res.json({ sucesso: true, mensagem: "Manutenção atualizada com sucesso", dados: await service.atualizarManutencao(req.params.id, req.params.idManutencao, req.body, escopoAlmoxarifado(req.usuario)) }) }
+  catch (erro) { responder(res, erro) }
+}
+export const excluirManutencao = async (req, res) => {
+  try { res.json({ sucesso: true, mensagem: "Manutenção excluída com sucesso", dados: await service.excluirManutencao(req.params.id, req.params.idManutencao, escopoAlmoxarifado(req.usuario)) }) }
   catch (erro) { responder(res, erro) }
 }

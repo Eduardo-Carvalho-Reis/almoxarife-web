@@ -1,3 +1,5 @@
+import { formatarMoedaCompra } from "../../utils/valoresCompra.mjs";
+import { notificarComprasAtualizadas } from "../../utils/comprasAtualizadas";
 import { useState, useEffect } from "react";
 import {
   Container,
@@ -104,6 +106,7 @@ export default function ComprasList() {
               c.itens?.map((i) => i.produto?.nome || `Produto ${i.id_produto}`).join(", ") ||
               "—",
             "Data": formatarData(c.data_compra),
+            "Valor total": formatarMoedaCompra(c.valor_total),
             "Status": (
               <Chip
                 label={c.status}
@@ -169,6 +172,7 @@ export default function ComprasList() {
       .then((res) => res.json())
       .then((result) => {
         if (result.sucesso) {
+          notificarComprasAtualizadas();
           carregarCompras(filtros); // recarrega mantendo os filtros atuais
         } else {
           setError(result.erro || "Erro ao excluir a compra");
@@ -206,6 +210,7 @@ export default function ComprasList() {
       .then((res) => res.json())
       .then((result) => {
         if (result.sucesso) {
+          notificarComprasAtualizadas();
           carregarCompras(filtros); // recarrega mantendo os filtros atuais
         } else {
           setError(result.erro || "Erro ao confirmar o recebimento");
@@ -239,7 +244,7 @@ export default function ComprasList() {
       <ListTemplate
         modulo="compras"
         title="Compras"
-        columns={["Nota Fiscal", "Fornecedor", "Produtos", "Data", "Status"]}
+        columns={["Nota Fiscal", "Fornecedor", "Produtos", "Data", "Valor total", "Status"]}
         data={data}
         loading={loading}
         onCreate={() => navigate("/compras/cadastro")}

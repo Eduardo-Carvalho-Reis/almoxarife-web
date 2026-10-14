@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Alert, Button, Container, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, MenuItem, TextField } from "@mui/material"
+import { Alert, Autocomplete, Button, Container, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, MenuItem, TextField } from "@mui/material"
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline"
 import { useNavigate } from "react-router-dom"
 import ListTemplate from "../../components/ListTemplate"
@@ -12,8 +12,9 @@ export default function EquipamentosList() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
-  const [filtros, setFiltros] = useState({ descricao: "", codigo: "", obraId: "" })
+  const [filtros, setFiltros] = useState({ descricao: "", codigo: "", placa: "", obraId: "" })
   const [obras, setObras] = useState([])
+  const [placas, setPlacas] = useState([])
   const [selecionado, setSelecionado] = useState(null)
   const [excluindo, setExcluindo] = useState(false)
 
@@ -58,13 +59,25 @@ export default function EquipamentosList() {
     }
   }
 
+  const carregarPlacas = async () => {
+    try {
+      const resposta = await fetch(`${API_URL}/equipamentos/placas`)
+      const resultado = await resposta.json()
+      if (resultado.sucesso) setPlacas(resultado.dados)
+      else setError(resultado.erro || "NÃ£o foi possÃ­vel carregar as placas cadastradas")
+    } catch (erro) {
+      setError("Erro ao carregar as placas: " + erro.message)
+    }
+  }
+
   useEffect(() => {
     carregarEquipamentos()
     carregarObras()
+    carregarPlacas()
   }, [])
 
   const handleLimpar = () => {
-    const limpos = { descricao: "", codigo: "", obraId: "" }
+    const limpos = { descricao: "", codigo: "", placa: "", obraId: "" }
     setFiltros(limpos)
     carregarEquipamentos(limpos)
   }
@@ -107,6 +120,15 @@ export default function EquipamentosList() {
         filters={<>
           <TextField label="Descrição" size="small" value={filtros.descricao} onChange={(event) => setFiltros((atual) => ({ ...atual, descricao: event.target.value }))} onKeyDown={(event) => event.key === "Enter" && carregarEquipamentos(filtros)} />
           <TextField label="Código" size="small" value={filtros.codigo} onChange={(event) => setFiltros((atual) => ({ ...atual, codigo: event.target.value }))} onKeyDown={(event) => event.key === "Enter" && carregarEquipamentos(filtros)} />
+          <Autocomplete
+            freeSolo
+            options={placas}
+            value={filtros.placa}
+            onChange={(_, valor) => setFiltros((atual) => ({ ...atual, placa: valor || "" }))}
+            onInputChange={(_, valor) => setFiltros((atual) => ({ ...atual, placa: valor }))}
+            sx={{ minWidth: 180 }}
+            renderInput={(params) => <TextField {...params} label="Placa" size="small" onKeyDown={(event) => event.key === "Enter" && carregarEquipamentos(filtros)} />}
+          />
           <TextField select label="Obra / Localização" size="small" value={filtros.obraId} onChange={(event) => setFiltros((atual) => ({ ...atual, obraId: event.target.value }))} sx={{ minWidth: 220 }}>
             <MenuItem value="">Todas as obras</MenuItem>
             {obras.map((obra) => <MenuItem key={obra.cod_almoxarifado} value={obra.cod_almoxarifado}>{obra.nome}</MenuItem>)}

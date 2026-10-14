@@ -191,3 +191,17 @@ export async function atualizarManutencao(id, idManutencao, entrada, escopo = nu
   }
   return repo.atualizarManutencao(id, idManutencao, dados)
 }
+
+export async function excluirHorimetro(id, idHorimetro, escopo = null) {
+  await validarEquipamento(id, escopo)
+  const existente = await repo.buscarHorimetro(id, idHorimetro)
+  if (!existente) throw erroHttp("Leitura de horímetro não encontrada", 404)
+  return db.sequelize.transaction((transaction) => repo.excluirHorimetro(id, idHorimetro, transaction))
+}
+
+export async function excluirManutencao(id, idManutencao, escopo = null) {
+  await validarEquipamento(id, escopo)
+  const existente = await repo.buscarManutencao(id, idManutencao)
+  if (!existente) throw erroHttp("Manutenção não encontrada", 404)
+  return db.sequelize.transaction((transaction) => repo.excluirManutencao(id, idManutencao, transaction))
+}

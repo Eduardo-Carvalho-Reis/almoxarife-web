@@ -1,6 +1,9 @@
 import * as repo from "../repositories/servico.repository.js";
 import db from "../models/index.js";
 import { assertAcessoAlmoxarifado } from "../utils/escopo.js";
+import { decimalEscalado, formatarDecimal, calcularValorTotal } from "../../utils/valoresCompra.mjs";
+
+const PRECISAO_SERVICO = { casasValor: 3 };
 
 const dataLocal = (valor) => {
   const [anoStr, mesStr, diaStr] = String(valor).split("-");
@@ -11,21 +14,21 @@ const dataLocal = (valor) => {
 };
 const normalizarItens = (itens) => {
   if (!Array.isArray(itens) || !itens.length) throw new Error("Informe ao menos um produto");
-  const agrupados = new Map();
-  for (const item of itens) {
-    const id_produto = Number(item.id_produto), quantidade = Number(item.quantidade), valor_unitario = Number(item.valor_unitario);
-    if (!id_produto || !Number.isFinite(quantidade) || !Number.isFinite(valor_unitario) || quantidade <= 0 || valor_unitario < 0) throw new Error("Cada item deve ter produto, quantidade e valor válidos");
-    const atual = agrupados.get(id_produto) || { quantidade: 0, valor_unitario };
-    agrupados.set(id_produto, { quantidade: atual.quantidade + quantidade, valor_unitario });
-  }
-  return [...agrupados].map(([id_produto, item]) => ({ id_produto, ...item }));
+  return itens.map((item) => {
+    const id_produto = Number(item.id_produto);
+    if (!Number.isInteger(id_produto) || id_produto <= 0) throw new Error("Cada item deve ter produto, quantidade e valor válidos");
+    const quantidade = decimalEscalado(item.quantidade, 3, 10);
+    const valor = decimalEscalado(item.valor_unitario, 3, 10);
+    if (quantidade <= BigInt(0) || valor < BigInt(0)) throw new Error("Cada item deve ter produto, quantidade e valor válidos");
+    return { id_produto, quantidade: formatarDecimal(quantidade, 3), valor_unitario: formatarDecimal(valor, 3) };
+  });
 };
 const montarDados = (dados, itens) => {
   if (!dados.id_fornecedor || !dados.id_funcionario_responsavel || !dados.cod_almoxarifado || !dados.data_servico || !String(dados.numero_nota_fiscal || "").trim() || !String(dados.aplicacao || "").trim()) throw new Error("Fornecedor, responsável, almoxarifado, data, nota fiscal e aplicação são obrigatórios");
   return {
     id_fornecedor: Number(dados.id_fornecedor), id_funcionario_responsavel: String(dados.id_funcionario_responsavel).trim(), cod_almoxarifado: Number(dados.cod_almoxarifado), data_servico: dataLocal(dados.data_servico),
     numero_nota_fiscal: String(dados.numero_nota_fiscal).trim(), aplicacao: String(dados.aplicacao).trim(), observacao: String(dados.observacao || "").trim() || null,
-    valor_total: itens.reduce((total, item) => total + item.quantidade * item.valor_unitario, 0)
+    valor_total: calcularValorTotal(itens, PRECISAO_SERVICO)
   };
 };
 const validarReferencias = async (dados, itens) => {

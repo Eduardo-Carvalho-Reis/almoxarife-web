@@ -1,3 +1,4 @@
+import { calcularValorTotal } from "../../utils/valoresCompra.mjs";
 import * as almoxarifadoRepo from "../repositories/almoxarifado.repository.js"
 import db from "../models/index.js"
 import { Op } from "sequelize"
@@ -354,11 +355,8 @@ export const calcularTotaisMovimentacao = async (id, filtrosPeriodo = {}, escopo
     throw new Error("Almoxarifado não encontrado")
   }
 
-  // Entrada: soma direto de Item_Compra (quantidade * preco_unitario_acordado)
-  // das compras já RECEBIDAS com destino este almoxarifado. Somamos pelos
-  // itens em vez de usar Compra.valor_total porque esse campo não estava
-  // sendo calculado no cadastro/edição da compra (ver correção em
-  // compra.service.js) — compras antigas ficariam de fora se usássemos ele.
+  // Compras não canceladas alimentam o financeiro de combustível desde o cadastro.
+  // Materiais continuam contando como entrada apenas após o recebimento.
   const [itensCompra, custosMedios, itensServico, estoqueDoPeriodo] = await Promise.all([
     db.ItemCompra.findAll({
       attributes: ["id_produto", "quantidade", "valor_unitario"],
@@ -366,10 +364,10 @@ export const calcularTotaisMovimentacao = async (id, filtrosPeriodo = {}, escopo
         {
           model: db.Compra,
           as: "compra",
-          attributes: [],
+          attributes: ["status"],
           where: {
             cod_almoxarifado_destino: codAlmoxarifado,
-            status: "RECEBIDO",
+            status: { [Op.in]: ["PENDENTE", "RECEBIDO"] },
             ...filtroDeData("data_compra", periodo)
           },
           required: true
@@ -414,15 +412,12 @@ export const calcularTotaisMovimentacao = async (id, filtrosPeriodo = {}, escopo
   ])
 
   const valorEntrada = somarValorDosItens(
-    itensCompra.filter((item) => !ehCombustivel(item)),
+    itensCompra.filter((item) => item.compra.status === "RECEBIDO" && !ehCombustivel(item)),
     // A entrada deve refletir o pre\u00e7o efetivamente registrado na compra,
     // nunca o custo m\u00e9dio atual de outro per\u00edodo.
     (item) => item.valor_unitario
   )
-  const valorServicos = somarValorDosItens(
-    itensServico,
-    (item) => item.valor_unitario
-  )
+  const valorServicos = calcularValorTotal(itensServico, { casasValor: 3 })
 
   const itensSaida = await db.SaidaItem.findAll({
     attributes: ["id_produto", "quantidade"],
@@ -455,13 +450,9 @@ export const calcularTotaisMovimentacao = async (id, filtrosPeriodo = {}, escopo
     itensSaida.filter((item) => !ehCombustivel(item)),
     valorUnitarioDaSaida
   )
-  const valorConsumoCombustivel = somarValorDosItens(
-    itensSaida.filter(ehCombustivel),
-    valorUnitarioDaSaida
-  )
-  // O card de abastecimento representa apenas o combustível efetivamente
-  // retirado do almoxarifado/tanque. Compras não atualizam este indicador.
-  const valorAbastecimentoTanque = valorConsumoCombustivel
+  // Histórico financeiro independente de saídas e do saldo atual de estoque.
+  // Cada Item_Compra aparece uma vez (apenas relações belongsTo na consulta).
+  const valorAbastecimentoTanque = calcularValorTotal(itensCompra.filter(ehCombustivel))
   const valorEstocado = estoqueDoPeriodo.reduce((soma, registro) => {
     const item = registro.toJSON()
     if (ehCombustivel(item)) return soma
@@ -490,7 +481,7 @@ export const listarAnosMovimentacao = async (id, escopo = null) => {
   const [compras, saidas, servicos, estoques] = await Promise.all([
     db.Compra.findAll({
       attributes: ["data_compra"],
-      where: { cod_almoxarifado_destino: codAlmoxarifado, status: "RECEBIDO" }
+      where: { cod_almoxarifado_destino: codAlmoxarifado, status: { [Op.in]: ["PENDENTE", "RECEBIDO"] } }
     }),
     db.Saida.findAll({
       attributes: ["data_saida"],

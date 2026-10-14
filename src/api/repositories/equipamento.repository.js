@@ -14,6 +14,7 @@ export async function listarTodos(filtros = {}) {
 
   if (filtros.descricao) where.descricao = { [Op.like]: `%${filtros.descricao}%` }
   if (filtros.codigo) where.codigo = { [Op.like]: `%${filtros.codigo}%` }
+  if (filtros.placa) where.placa = { [Op.like]: `%${filtros.placa}%` }
   if (filtros.obraId) where.obraId = filtros.obraId
 
   return await Equipamento.findAll({
@@ -21,6 +22,16 @@ export async function listarTodos(filtros = {}) {
     include: [incluirObra],
     order: [["descricao", "ASC"]]
   })
+}
+
+export async function listarPlacas() {
+  const registros = await Equipamento.findAll({
+    attributes: ["placa"],
+    where: { placa: { [Op.not]: null, [Op.ne]: "" } },
+    order: [["placa", "ASC"]],
+    raw: true
+  })
+  return [...new Set(registros.map(({ placa }) => String(placa).trim()).filter(Boolean))]
 }
 
 export async function buscarPorId(id) {

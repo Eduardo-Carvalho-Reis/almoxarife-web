@@ -74,3 +74,11 @@ export async function atualizarManutencao(id, idManutencao, dados, transaction) 
   await ManutencaoEquipamento.update(dados, { where: { id_manutencao: idManutencao, id_equipamento: id }, transaction })
   return buscarManutencao(id, idManutencao)
 }
+
+export const excluirHorimetro = (id, idHorimetro, transaction) => HorimetroEquipamento.destroy({
+  where: { id_horimetro: idHorimetro, id_equipamento: id }, transaction
+})
+
+export const excluirManutencao = (id, idManutencao, transaction) => ManutencaoEquipamento.destroy({
+  where: { id_manutencao: idManutencao, id_equipamento: id }, transaction
+})

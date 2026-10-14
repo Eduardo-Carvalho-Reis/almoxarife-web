@@ -83,6 +83,30 @@ export async function listarTodos(filtros = {}) {
   })
 }
 
+export async function listarProdutosComSaidas(escopo = null) {
+  const whereSaida = {}
+  if (escopo != null) whereSaida.cod_almoxarifado_origem = escopo
+
+  return await Produto.findAll({
+    attributes: ["id_produto", "nome"],
+    include: [{
+      model: SaidaItem,
+      as: "itensSaida",
+      attributes: [],
+      required: true,
+      include: [{
+        model: Saida,
+        as: "saida",
+        attributes: [],
+        required: true,
+        where: whereSaida
+      }]
+    }],
+    order: [["nome", "ASC"]],
+    distinct: true
+  })
+}
+
 export async function buscarPorId(id, transaction = null) {
   return await Saida.findByPk(id, {
     include: includeCompleto,

@@ -1,3 +1,4 @@
+import { useComprasAtualizadas } from "../../utils/comprasAtualizadas";
 import { useEffect, useState } from "react";
 import {
   Container,
@@ -64,6 +65,7 @@ const MESES = [
 
 export default function AlmoxarifadoDetalhes() {
   const navigate = useNavigate();
+  const revisaoCompras = useComprasAtualizadas();
   const { id } = useParams();
   const { podeEditar } = useAuth();
   // Só quem pode escrever no módulo (CENTRAL/ALMOXARIFE) vê o botão Editar.
@@ -130,7 +132,7 @@ export default function AlmoxarifadoDetalhes() {
         }
       })
       .catch(err => setError("Erro ao carregar totais de movimentação: " + err.message));
-  }, [id, anoAtual]);
+  }, [id, anoAtual, revisaoCompras]);
 
   // ── Handlers dos filtros do estoque (filtragem LOCAL no mock) ──
   // Os cards são carregados novamente a cada troca de período. Sem parâmetros,
@@ -166,7 +168,7 @@ export default function AlmoxarifadoDetalhes() {
       });
 
     return () => controller.abort();
-  }, [id, anoSelecionado, mesSelecionado, todoPeriodo]);
+  }, [id, anoSelecionado, mesSelecionado, todoPeriodo, revisaoCompras]);
 
   function handleFiltroChange(campo, valor) {
     setFiltros(prev => ({ ...prev, [campo]: valor }));

@@ -1,27 +1,9 @@
+import { previaValorTotal, formatarMoedaCompra } from "../utils/valoresCompra.mjs";
 // src/components/ItemCompraRow.jsx
-import { Stack, TextField, Autocomplete, IconButton, Switch, FormControlLabel } from "@mui/material";
+import { Stack, TextField, Autocomplete, IconButton } from "@mui/material";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 import { passoQuantidade, ehUnidadeInteira } from "../utils/quantidade";
 
-/**
- * Uma linha de item da compra: seletor de Produto + Quantidade + Valor unitário
- * + switch "automático" + botão remover.
- *
- * Por que existe (mesma lógica do ItemSaidaRow):
- *   tanto Form quanto Edit de Compra renderizam essa mesma linha. Extrair
- *   evita duplicar os campos nos dois arquivos — manutenção em 1 lugar só.
- *
- * Props:
- *   - item:              { id_produto, quantidade, valor_unitario, automatico }
- *   - index:              posição no array de itens
- *   - produtos:           lista para o select [{ id_produto, nome }]
- *   - onChange:           callback (index, campo, valor)
- *   - onRemove:           callback (index)
- *   - disableRemove:      desabilita o botão quando há só 1 item
- *   - onToggleAutomatico: callback (index) — liga/desliga o preenchimento
- *     automático do valor unitário. Se omitido, o switch não é exibido e o
- *     campo de valor se comporta como antes (controlado só por valorReadOnly).
- */
 export default function ItemCompraRow({
   item,
   index,
@@ -29,8 +11,7 @@ export default function ItemCompraRow({
   onChange,
   onRemove,
   disableRemove,
-  valorReadOnly = false,
-  onToggleAutomatico
+  valorCasas = 3
 }) {
   const selecionado = produtos.find(
     (p) => Number(p.id_produto) === Number(item.id_produto)
@@ -76,7 +57,7 @@ export default function ItemCompraRow({
         required
         // O passo depende da unidade do produto: inteiro (UN/PC/CX/SC) ou
         // fracionado (KG/LT/M...).
-        inputProps={{ min: 0, step: passo }}
+        inputProps={{ min: ehUnidadeInteira(unidade) ? 1 : 0.001, step: ehUnidadeInteira(unidade) ? passo : "0.001" }}
         helperText={
           unidade
             ? `${unidade}${ehUnidadeInteira(unidade) ? " (inteiro)" : ""}`
@@ -88,34 +69,26 @@ export default function ItemCompraRow({
       <TextField
         size="small"
         label="Valor unit."
-        type="number"
-        value={item.valor_unitario}
+        type="text"
+        value={String(item.valor_unitario).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").replace(".", ",")}
         onChange={(e) => onChange(index, "valor_unitario", e.target.value)}
         required
-        // Quando valorReadOnly, o valor é calculado automaticamente (preço de
-        // custo do produto) e o usuário não pode editá-lo.
-        InputProps={{ readOnly: valorReadOnly }}
-        disabled={valorReadOnly}
         // Enviado como valor_unitario; o model mapeia p/ preco_unitario_acordado.
-        inputProps={{ min: 0, step: "0.01" }}
+        inputProps={{ inputMode: "decimal", pattern: `[0-9]+([.,][0-9]{1,${valorCasas}})?` }}
+        helperText={`Até ${valorCasas} casas decimais (ex.: 6,${"0".repeat(valorCasas)})`}
         sx={{ width: { xs: "100%", sm: "18%" } }}
       />
 
-      {/* Só aparece se o form pai passar o callback — mantém o componente
-          compatível com quem ainda não usa esse recurso (ex: Edit). */}
-      {onToggleAutomatico && (
-        <FormControlLabel
-          sx={{ ml: 0, flexShrink: 0, whiteSpace: "nowrap" }}
-          control={
-            <Switch
-              size="small"
-              checked={!!item.automatico}
-              onChange={() => onToggleAutomatico(index)}
-            />
-          }
-          label="Automático"
-        />
-      )}
+      <TextField
+        size="small"
+        label="Subtotal"
+        type="text"
+        value={formatarMoedaCompra(previaValorTotal([item], { casasValor: valorCasas }))}
+        InputProps={{ readOnly: true }}
+        inputProps={{ tabIndex: -1 }}
+        helperText=" "
+        sx={{ width: { xs: "100%", sm: "18%" } }}
+      />
 
       <IconButton
         color="error"

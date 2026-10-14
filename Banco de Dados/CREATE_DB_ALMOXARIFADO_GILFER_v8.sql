@@ -508,7 +508,7 @@ CREATE TABLE Servico_Item (
     id_servico INT UNSIGNED NOT NULL,
     id_produto INT UNSIGNED NOT NULL,
     quantidade DECIMAL(10,3) NOT NULL,
-    valor_unitario DECIMAL(12,2) NOT NULL,
+    valor_unitario DECIMAL(12,3) NOT NULL,
     PRIMARY KEY (id_servico, id_produto),
     CONSTRAINT fk_servico_item_servico
         FOREIGN KEY (id_servico) REFERENCES Servico(id_servico) ON DELETE CASCADE,

@@ -49,6 +49,7 @@ export default function ListTemplate({
   // Algumas listas são apenas painéis de consulta, embora o usuário tenha
   // escrita no módulo. Permite ocultar a coluna de ações sem ocultar o resto.
   showRowActions = true,
+  singleLineFilters = false,
   // Customização opcional do botão destrutivo (padrão = Inativar):
   actionLabel = "Inativar",
   actionIcon = <BlockIcon fontSize="small" />,
@@ -140,10 +141,16 @@ export default function ListTemplate({
         sx={{
           mb: 2.5,
           // Cada campo/botão de filtro ocupa 100% no celular.
-          "& > *": { width: { xs: "100%", md: "auto" } }
+          flexWrap: { xs: "wrap", md: singleLineFilters ? "nowrap" : "wrap" },
+          overflowX: { md: singleLineFilters ? "auto" : "visible" },
+          pb: { md: singleLineFilters ? 0.5 : 0 },
+          "& > *": {
+            width: { xs: "100%", md: "auto" },
+            flexShrink: { md: singleLineFilters ? 0 : 1 }
+          }
         }}
         alignItems={{ md: "center" }}
-        flexWrap="wrap"
+        flexWrap={singleLineFilters ? "nowrap" : "wrap"}
       >
         {filters}
         <Button

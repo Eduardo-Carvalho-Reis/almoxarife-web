@@ -19,7 +19,7 @@ export default function ManutencaoList() {
   const navigate = useNavigate()
   const [itens, setItens] = useState([]), [totais, setTotais] = useState({}), [obras, setObras] = useState([])
   const [loading, setLoading] = useState(true), [erro, setErro] = useState("")
-  const [filtros, setFiltros] = useState({ equipamento: "", codigo: "", obraId: "", status: "", dataInicio: "", dataFim: "" })
+  const [filtros, setFiltros] = useState({ equipamento: "", codigo: "", obraId: "", status: ""})
 
   const carregar = useCallback(async (ativos = {}) => {
     setLoading(true); setErro("")
@@ -37,7 +37,7 @@ export default function ManutencaoList() {
     fetch(`${API_URL}/lookups/almoxarifados`).then((res) => res.json()).then((res) => res.sucesso && setObras(res.dados)).catch(() => {})
   }, [carregar])
 
-  const limpar = () => { const limpos = { equipamento: "", codigo: "", obraId: "", status: "", dataInicio: "", dataFim: "" }; setFiltros(limpos); carregar(limpos) }
+  const limpar = () => { const limpos = { equipamento: "", codigo: "", obraId: "", status: ""}; setFiltros(limpos); carregar(limpos) }
   const dadosTabela = itens.map((item) => ({
     Equipamento: item.descricao,
     "Ativo fixo": item.codigo,
@@ -66,7 +66,7 @@ export default function ManutencaoList() {
     </Grid>
     <ListTemplate modulo="equipamentos" title="Situação dos equipamentos" canCreate={false} showRowActions={false} loading={loading} data={dadosTabela}
       columns={["Equipamento", "Ativo fixo", "Obra", "Horímetro atual", "Última revisão", "Data última revisão", "Intervalo", "Próx. revisão", "Horas restantes", "Status"]}
-      onSearch={() => carregar(filtros)} onClear={limpar} onRowClick={(item) => navigate(`/equipamentos/${item.__id__}/manutencao`)} emptyMessage="Nenhum equipamento encontrado para os filtros informados."
+      onSearch={() => carregar(filtros)} onClear={limpar} singleLineFilters onRowClick={(item) => navigate(`/equipamentos/${item.__id__}/manutencao`)} emptyMessage="Nenhum equipamento encontrado para os filtros informados."
       filters={<>
         <TextField label="Equipamento" size="small" value={filtros.equipamento} onChange={(e) => setFiltros((atual) => ({ ...atual, equipamento: e.target.value }))} />
         <TextField label="Ativo fixo" size="small" value={filtros.codigo} onChange={(e) => setFiltros((atual) => ({ ...atual, codigo: e.target.value }))} />
@@ -74,8 +74,6 @@ export default function ManutencaoList() {
         <TextField select label="Situação" size="small" value={filtros.status} onChange={(e) => setFiltros((atual) => ({ ...atual, status: e.target.value }))} sx={{ minWidth: 190 }}>
           <MenuItem value="">Todas</MenuItem><MenuItem value="REVISAO_VENCIDA">Revisões vencidas</MenuItem><MenuItem value="PROXIMO_A_VENCER">Próximas a vencer</MenuItem><MenuItem value="AINDA_NAO_VENCEU">Ainda não vencidas</MenuItem><MenuItem value="SEM_LEITURA">Sem leitura</MenuItem><MenuItem value="SEM_MANUTENCAO">Sem manutenção</MenuItem>
         </TextField>
-        <TextField label="Leituras de" size="small" type="date" value={filtros.dataInicio} onChange={(e) => setFiltros((atual) => ({ ...atual, dataInicio: e.target.value }))} slotProps={{ inputLabel: { shrink: true } }} />
-        <TextField label="até" size="small" type="date" value={filtros.dataFim} onChange={(e) => setFiltros((atual) => ({ ...atual, dataFim: e.target.value }))} slotProps={{ inputLabel: { shrink: true } }} />
       </>}
     />
   </Container>

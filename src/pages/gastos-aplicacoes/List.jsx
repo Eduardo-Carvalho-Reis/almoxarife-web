@@ -61,7 +61,6 @@ export default function GastosAplicacoesList() {
         <Button variant={ordenacao === "servico_maior" ? "contained" : "outlined"} size="small" onClick={() => { setOrdenacao("servico_maior"); carregar(filtros, "servico_maior"); }}>Maiores serviços</Button>
         <Button variant={ordenacao === "servico_menor" ? "contained" : "outlined"} size="small" onClick={() => { setOrdenacao("servico_menor"); carregar(filtros, "servico_menor"); }}>Menores serviços</Button>
       </Stack>
-      <Typography variant="body2" color="text.secondary">Clique em uma aplicação para consultar seus serviços e saídas.</Typography>
     </>} />
     <Dialog open={!!detalhe} onClose={() => !carregandoDetalhe && setDetalhe(null)} maxWidth="xl" fullWidth>
       <DialogTitle>{detalhe?.aplicacao || "Detalhes da aplicação"}</DialogTitle>

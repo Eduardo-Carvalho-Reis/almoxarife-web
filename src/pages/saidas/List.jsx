@@ -19,6 +19,15 @@ import EntityAutocomplete from "../../components/EntityAutocomplete";
 
 const API_URL = `${window.location.origin}/api`;
 const filtrosVazios = { data: "", destino: "", responsavel: "", produto: "", tipo: "" };
+const normalizarProdutos = (lista = []) => Array.from(new Map(
+  lista
+    .map((produto) => ({ id_produto: produto.id_produto, nome: produto.nome || `Produto ${produto.id_produto}` }))
+    .filter((produto) => produto.id_produto !== undefined && produto.id_produto !== null)
+    .map((produto) => [String(produto.id_produto), produto])
+).values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+const produtosDasSaidas = (saidas = []) => normalizarProdutos(
+  saidas.flatMap((saida) => (saida.itens || []).map((item) => item.produto || { id_produto: item.id_produto }))
+);
 
 export default function SaidasList() {
   const navigate = useNavigate();
@@ -45,16 +54,23 @@ export default function SaidasList() {
   }, []);
 
   function carregarOpcoesFiltros() {
+    const buscarJson = (url) => fetch(url).then(async (res) => {
+      const resultado = await res.json().catch(() => ({ sucesso: false }));
+      return res.ok ? resultado : { sucesso: false };
+    }).catch(() => ({ sucesso: false }));
+
     Promise.all([
-      fetch(`${API_URL}/almoxarifados`).then((res) => res.json()),
+      buscarJson(`${API_URL}/almoxarifados`),
       // Lookup de apoio: funciona mesmo para quem não acessa o módulo Funcionários.
-      fetch(`${API_URL}/lookups/funcionarios`).then((res) => res.json()),
-      fetch(`${API_URL}/produtos`).then((r) => r.json()).catch(() => ({ sucesso: false }))
+      buscarJson(`${API_URL}/lookups/funcionarios`),
+      buscarJson(`${API_URL}/saidas/produtos`),
+      buscarJson(`${API_URL}/saidas`)
     ])
-      .then(([resAlmoxarifados, resFuncionarios, resProdutos]) => {
+      .then(([resAlmoxarifados, resFuncionarios, resProdutos, resSaidas]) => {
         if (resAlmoxarifados.sucesso) setAlmoxarifados(resAlmoxarifados.dados);
         if (resFuncionarios.sucesso) setFuncionarios(resFuncionarios.dados);
-        if (resProdutos.sucesso) setProdutos(resProdutos.dados);
+        if (resProdutos.sucesso) setProdutos(normalizarProdutos(resProdutos.dados));
+        else if (resSaidas.sucesso) setProdutos(produtosDasSaidas(resSaidas.dados));
       })
       .catch(() => {
         // A listagem principal ainda mostra seu proprio erro se a API falhar.
@@ -268,21 +284,16 @@ export default function SaidasList() {
               size="small"
               sx={{ minWidth: 190 }}
             />
-            <TextField
-              select
+            <EntityAutocomplete
+              options={produtos}
+              value={filtros.produto}
+              onChange={(value) => handleFiltroChange("produto", value)}
+              getOptionId={(produto) => produto.id_produto}
+              getOptionLabel={(produto) => produto.nome || ""}
               label="Produto"
               size="small"
-              value={filtros.produto}
-              onChange={(e) => handleFiltroChange("produto", e.target.value)}
               sx={{ minWidth: 190 }}
-            >
-              <MenuItem value="">Todos</MenuItem>
-              {produtos.map((produto) => (
-                <MenuItem key={produto.id_produto} value={produto.id_produto}>
-                  {produto.nome}
-                </MenuItem>
-              ))}
-            </TextField>
+            />
           </>
         }
       />

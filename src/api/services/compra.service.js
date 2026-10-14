@@ -1,3 +1,5 @@
+import { normalizarItens } from "../utils/itensCompra.js";
+import { calcularValorTotal } from "../../utils/valoresCompra.mjs";
 import * as compraRepo from "../repositories/compra.repository.js";
 import db from "../models/index.js";
 import { processarMovimentacao } from "../utils/estoqueHelper.js";
@@ -29,52 +31,6 @@ const normalizarFiltros = (filtros = {}) => {
 
   return limpos;
 };
-
-const normalizarItens = (itens = []) => {
-  if (!Array.isArray(itens) || itens.length === 0) {
-    throw new Error(
-      "Por favor, preencha todos os campos obrigatórios antes de prosseguir.",
-    );
-  }
-
-  const agrupados = new Map();
-
-  for (const item of itens) {
-    const idProduto = Number(item.id_produto);
-    const qte = Number(item.quantidade);
-    const vUnit = Number(item.valor_unitario);
-
-    if (!idProduto || Number.isNaN(qte) || Number.isNaN(vUnit)) {
-      throw new Error(
-        "Formato de dado inválido. Corrija as informações e tente novamente.",
-      );
-    }
-
-    if (qte <= 0 || vUnit <= 0) {
-      throw new Error("A quantidade e o valor devem ser maiores que zero.");
-    }
-
-    const atual = agrupados.get(idProduto) || {
-      quantidade: 0,
-      valor_unitario: vUnit,
-    };
-    agrupados.set(idProduto, {
-      quantidade: atual.quantidade + qte,
-      valor_unitario: vUnit,
-    });
-  }
-
-  return Array.from(agrupados.entries()).map(([id_produto, obj]) => ({
-    id_produto,
-    quantidade: obj.quantidade,
-    valor_unitario: obj.valor_unitario,
-  }));
-};
-
-// Soma quantidade * valor_unitario de cada item — usado para preencher
-// Compra.valor_total, que antes ficava sempre em 0 (nunca era calculado).
-const calcularValorTotal = (itens = []) =>
-  itens.reduce((soma, item) => soma + item.quantidade * item.valor_unitario, 0);
 
 const montarDadosCompra = (dados) => {
   if (
@@ -302,11 +258,11 @@ export const editarCompra = async (id, dados, escopo = null) => {
   if (dados.itens) {
     itens = normalizarItens(dados.itens);
   } else {
-    itens = compraAtual.itens.map((item) => ({
+    itens = normalizarItens(compraAtual.itens.map((item) => ({
       id_produto: item.id_produto,
       quantidade: item.quantidade,
       valor_unitario: item.valor_unitario,
-    }));
+    })));
   }
 
   // Recalcula o valor total sempre, para os itens antigos (que podem nunca

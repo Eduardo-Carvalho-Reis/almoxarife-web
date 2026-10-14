@@ -1,4 +1,5 @@
 import * as repo from "../repositories/gasto-aplicacao.repository.js";
+import { calcularSubtotal } from "../../utils/valoresCompra.mjs";
 
 const chaveAplicacao = (valor) => String(valor || "").trim().toLocaleLowerCase("pt-BR");
 const numero = (valor) => Number(valor || 0);
@@ -33,7 +34,7 @@ const movimentos = async () => {
         fornecedor: servico.fornecedor?.razao_social || servico.fornecedor?.nome_fantasia || "—",
         produto: item.produto?.nome || `Produto ${item.id_produto}`,
         quantidade: numero(item.quantidade), valor_unitario: valorUnitario,
-        total: numero(item.quantidade) * valorUnitario
+        total: numero(calcularSubtotal(item, { casasValor: 3 }))
       });
     }
   }
